@@ -28,43 +28,68 @@ st.sidebar.header("Data Import")
 uploaded_file = st.sidebar.file_uploader("Upload SMS Data (CSV)", type=['csv'])
 
 if uploaded_file is not None:
-    # Process new SMS data
+    # Load and display raw data structure
     df = pd.read_csv(uploaded_file)
-    processed_data = process_sms_data(df)
-    categorized_data = categorize_transactions(processed_data)
-    
-    # Update session state
-    st.session_state.transactions = pd.concat([st.session_state.transactions, categorized_data])
-    save_data(st.session_state.transactions)
-    st.sidebar.success("Data processed successfully!")
+    st.sidebar.write("CSV Columns:", df.columns.tolist())
+
+    # Display sample data
+    with st.expander("Preview Raw Data"):
+        st.write("First few rows of uploaded data:", df.head())
+
+    try:
+        # Process new SMS data
+        processed_data = process_sms_data(df)
+        categorized_data = categorize_transactions(processed_data)
+
+        # Update session state
+        st.session_state.transactions = pd.concat([st.session_state.transactions, categorized_data])
+        save_data(st.session_state.transactions)
+        st.sidebar.success("Data processed successfully!")
+    except Exception as e:
+        st.error(f"Error processing data: {str(e)}")
 
 # Main dashboard
 col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Cash Flow Analysis")
-    cashflow_chart = create_cashflow_chart(st.session_state.transactions)
-    st.plotly_chart(cashflow_chart, use_container_width=True)
+    if not st.session_state.transactions.empty:
+        cashflow_chart = create_cashflow_chart(st.session_state.transactions)
+        st.plotly_chart(cashflow_chart, use_container_width=True)
+    else:
+        st.info("Upload SMS data to view cash flow analysis")
 
 with col2:
     st.subheader("Investment Portfolio")
-    investment_chart = create_investment_chart(st.session_state.transactions)
-    st.plotly_chart(investment_chart, use_container_width=True)
+    if not st.session_state.transactions.empty:
+        investment_chart = create_investment_chart(st.session_state.transactions)
+        st.plotly_chart(investment_chart, use_container_width=True)
+    else:
+        st.info("Upload SMS data to view investment analysis")
 
 # Transaction list
 st.subheader("Recent Transactions")
-st.dataframe(
-    st.session_state.transactions.sort_values('date', ascending=False).head(10),
-    use_container_width=True
-)
+if not st.session_state.transactions.empty:
+    st.dataframe(
+        st.session_state.transactions.sort_values('date', ascending=False).head(10),
+        use_container_width=True
+    )
+else:
+    st.info("No transactions to display")
 
 # Upcoming bills
 st.subheader("Upcoming Bills & Obligations")
-upcoming_bills = check_upcoming_bills(st.session_state.transactions)
-for bill in upcoming_bills:
-    st.warning(f"📅 {bill['description']} - Due on {bill['due_date']} (Amount: ${bill['amount']})")
+if not st.session_state.transactions.empty:
+    upcoming_bills = check_upcoming_bills(st.session_state.transactions)
+    if upcoming_bills:
+        for bill in upcoming_bills:
+            st.warning(f"📅 {bill['description']} - Due on {bill['due_date']} (Amount: ${bill['amount']})")
+    else:
+        st.info("No upcoming bills detected")
+else:
+    st.info("Upload SMS data to view upcoming bills")
 
 # Export data
-if st.button("Export Data"):
+if st.button("Export Data") and not st.session_state.transactions.empty:
     st.session_state.transactions.to_csv("financial_data_export.csv", index=False)
     st.success("Data exported successfully!")
