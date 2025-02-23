@@ -8,6 +8,11 @@ from utils.transaction_categorizer import categorize_transactions
 from utils.data_manager import load_data, save_data
 from utils.visualization import create_cashflow_chart, create_investment_chart
 from utils.notification import check_upcoming_bills
+from utils.financial_analytics import (
+    analyze_spending_patterns,
+    get_budget_recommendations,
+    generate_financial_insights
+)
 
 # Page configuration
 st.set_page_config(
@@ -76,6 +81,81 @@ if not st.session_state.transactions.empty:
     )
 else:
     st.info("No transactions to display")
+
+# New Analytics Section
+st.header("Financial Analytics & Insights")
+
+if not st.session_state.transactions.empty:
+    # Create tabs for different analytics views
+    analytics_tab, insights_tab, budget_tab = st.tabs([
+        "Spending Analytics", "Financial Insights", "Budget Recommendations"
+    ])
+
+    with analytics_tab:
+        patterns = analyze_spending_patterns(st.session_state.transactions)
+
+        if patterns:
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.subheader("Monthly Spending Trend")
+                monthly_data = pd.Series(patterns['monthly_trend'])
+                st.line_chart(monthly_data)
+
+            with col2:
+                st.subheader("Category Distribution")
+                if 'category_insights' in patterns:
+                    category_sums = {k: v['sum'] for k, v in patterns['category_insights'].items()}
+                    st.bar_chart(category_sums)
+
+            st.subheader("Day of Week Patterns")
+            dow_data = pd.Series(patterns['day_of_week_pattern'])
+            st.bar_chart(dow_data)
+
+            if patterns.get('unusual_transactions'):
+                st.subheader("Unusual Transactions")
+                for tx in patterns['unusual_transactions']:
+                    st.warning(
+                        f"Unusual amount (₹{tx['amount']:.2f}) on {tx['date']} "
+                        f"for {tx['description']}"
+                    )
+
+    with insights_tab:
+        insights = generate_financial_insights(st.session_state.transactions)
+
+        for insight in insights:
+            if insight['type'] == 'trend':
+                icon = "📈" if insight['impact'] == 'positive' else "📉"
+            elif insight['type'] == 'category':
+                icon = "🎯"
+            else:
+                icon = "💡"
+
+            st.subheader(f"{icon} {insight['title']}")
+            st.write(insight['description'])
+
+            if 'details' in insight:
+                for cat, amount in insight['details'].items():
+                    st.metric(cat, f"₹{amount:.2f}")
+
+    with budget_tab:
+        recommendations = get_budget_recommendations(st.session_state.transactions)
+
+        st.subheader("📊 Recommended Monthly Budgets")
+        st.write("Based on your historical spending patterns")
+
+        for category, data in recommendations.items():
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                st.metric(
+                    category,
+                    f"₹{data['recommended_budget']:.2f}",
+                    f"+{data['buffer_percentage']}%"
+                )
+            with col2:
+                st.caption(f"Based on avg: ₹{data['based_on_average']:.2f}")
+else:
+    st.info("Upload transaction data to view analytics and insights")
 
 # Upcoming bills
 st.subheader("Upcoming Bills & Obligations")
