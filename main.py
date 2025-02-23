@@ -104,8 +104,8 @@ if not st.session_state.transactions.empty:
                     with cols[i]:
                         st.metric(
                             f"{account} Activity",
-                            f"₹{metrics['amount']['mean']:.2f} avg",
-                            f"{metrics['type']:.1f}% debits"
+                            f"₹{metrics['mean']:.2f} avg",
+                            f"{metrics['debit_ratio']:.1f}% debits"
                         )
 
             # Monthly Trends
@@ -124,7 +124,7 @@ if not st.session_state.transactions.empty:
                 st.subheader("Category Distribution")
                 if 'category_insights' in patterns:
                     category_sums = {
-                        k: v['sum'] 
+                        k: v['sum']
                         for k, v in patterns['category_insights'].items()
                     }
                     fig = px.bar(
@@ -190,7 +190,7 @@ if not st.session_state.transactions.empty:
         for account in set(data['account_type'] for data in recommendations.values()):
             st.subheader(f"{account} Budgets")
             account_recommendations = {
-                k: v for k, v in recommendations.items() 
+                k: v for k, v in recommendations.items()
                 if v['account_type'] == account
             }
 

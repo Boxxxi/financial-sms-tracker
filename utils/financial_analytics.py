@@ -53,16 +53,20 @@ def analyze_account_patterns(df: pd.DataFrame) -> Dict:
     """
     Analyze patterns across different accounts
     """
-    # Account-wise spending analysis
-    account_spending = df.groupby(['account_type', 'type'])['amount'].agg([
-        'sum', 'count', 'mean'
-    ]).round(2)
+    # Account-wise metrics
+    account_metrics = {}
 
-    # Transaction frequency by account
-    account_frequency = df.groupby('account_type').agg({
-        'amount': ['count', 'mean', 'std'],
-        'type': lambda x: (x == 'debit').mean() * 100  # Percentage of debits
-    }).round(2)
+    for account in df['account_type'].unique():
+        account_data = df[df['account_type'] == account]
+
+        metrics = {
+            'mean': account_data['amount'].mean(),
+            'count': len(account_data),
+            'std': account_data['amount'].std(),
+            'debit_ratio': (account_data['type'] == 'debit').mean() * 100
+        }
+
+        account_metrics[account] = metrics
 
     # Monthly trends by account
     monthly_by_account = df.groupby([
@@ -71,8 +75,7 @@ def analyze_account_patterns(df: pd.DataFrame) -> Dict:
     ])['amount'].sum().unstack().fillna(0)
 
     return {
-        'spending_by_account': account_spending.to_dict(),
-        'account_metrics': account_frequency.to_dict(),
+        'account_metrics': account_metrics,
         'monthly_trends': monthly_by_account.to_dict()
     }
 
