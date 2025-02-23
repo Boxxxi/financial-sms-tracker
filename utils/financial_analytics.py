@@ -22,16 +22,14 @@ def analyze_spending_patterns(df: pd.DataFrame) -> Dict:
     )['amount'].sum().sort_index().tail(6)
 
     # Category-wise spending
-    category_spending = debits.groupby('category').agg({
-        'amount': {
-            'sum': 'sum',
-            'count': 'count',
-            'mean': 'mean'
-        }
-    }).round(2)
+    category_spending = debits.groupby('category').agg([
+        ('sum', 'amount', 'sum'),
+        ('count', 'amount', 'count'),
+        ('mean', 'amount', 'mean')
+    ]).round(2)
 
-    # Flatten multi-level columns
-    category_spending.columns = ['sum', 'count', 'mean']
+    # Flatten columns
+    category_spending.columns = category_spending.columns.get_level_values(0)
     category_insights = category_spending.to_dict('index')
 
     # Account-wise analysis
