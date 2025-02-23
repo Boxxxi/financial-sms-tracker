@@ -3,6 +3,7 @@ import numpy as np
 from typing import Dict, List
 import re
 from datetime import datetime
+from models.regex_patterns import REGEX_MAP, REGEX_MAP_PRE, REGEX_MAP_POST, TRANSACTION_PATTERNS
 
 def process_sms_data(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -25,15 +26,19 @@ def process_sms_data(df: pd.DataFrame) -> pd.DataFrame:
     for _, row in df.iterrows():
         # Extract transaction details using regex
         message_text = str(row[text_col])
-        amount = extract_amount(message_text)
-        transaction_type = classify_transaction_type(message_text)
+        transaction_details = extract_transaction_details(message_text)
 
-        if amount:
+        if transaction_details.get('amount', 0) > 0:  # Only process if amount is found
             transaction_data = {
-                'amount': amount,
-                'type': transaction_type,
-                'description': extract_description(message_text),
-                'raw_message': message_text
+                'amount': transaction_details['amount'],
+                'type': transaction_details['type'],
+                'description': transaction_details['description'],
+                'raw_message': message_text,
+                'transaction_currency': transaction_details.get('currency', 'INR'),
+                'upi_id': transaction_details.get('upi_id', ''),
+                'reference_number': transaction_details.get('reference', ''),
+                'transaction_time': transaction_details.get('time', ''),
+                'mode': transaction_details.get('mode', 'unknown')
             }
 
             # Add date if available
@@ -65,35 +70,80 @@ def process_sms_data(df: pd.DataFrame) -> pd.DataFrame:
             processed_data.append(transaction_data)
 
     if not processed_data:
-        return pd.DataFrame(columns=['date', 'amount', 'type', 'description', 'sender', 'raw_message'])
+        return pd.DataFrame(columns=['date', 'amount', 'type', 'description', 'sender', 'raw_message',
+                                   'transaction_currency', 'upi_id', 'reference_number', 'transaction_time', 'mode'])
 
     return pd.DataFrame(processed_data)
 
-def extract_amount(message: str) -> float:
-    """Extract transaction amount from SMS message"""
-    # Common patterns for Indian/US/UK currency formats
-    amount_pattern = r'(?:RS|INR|₹|\$|£)\s*(\d+(?:,\d+)*(?:\.\d{2})?)'
-    match = re.search(amount_pattern, message, re.IGNORECASE)
+def extract_transaction_details(message: str) -> Dict:
+    """
+    Extract all transaction details from SMS using enhanced regex patterns
+    """
+    details = {
+        'amount': 0,
+        'type': 'unknown',
+        'description': 'Uncategorized',
+        'currency': 'INR',
+        'upi_id': '',
+        'reference': '',
+        'time': '',
+        'mode': 'unknown'
+    }
 
-    if match:
-        # Remove commas and convert to float
-        amount_str = match.group(1).replace(',', '')
-        return float(amount_str)
-    return 0.0  # Return 0.0 instead of None for better DataFrame handling
+    # Extract amount
+    amount_match = re.search(REGEX_MAP_PRE['amount'], message, re.IGNORECASE)
+    if amount_match:
+        amount_str = amount_match.group(1).replace(',', '')
+        try:
+            details['amount'] = float(amount_str)
+        except ValueError:
+            pass
 
-def classify_transaction_type(message: str) -> str:
-    """Classify transaction type using simple rules"""
-    message = message.lower()
+    # Extract transaction type
+    if re.search(TRANSACTION_PATTERNS['debit'], message, re.IGNORECASE):
+        details['type'] = 'debit'
+    elif re.search(TRANSACTION_PATTERNS['credit'], message, re.IGNORECASE):
+        details['type'] = 'credit'
 
-    if any(word in message for word in ['credited', 'received', 'refund', 'credit']):
-        return 'credit'
-    elif any(word in message for word in ['debited', 'paid', 'spent', 'debit', 'payment']):
-        return 'debit'
-    return 'unknown'
+    # Extract transaction mode
+    if re.search(TRANSACTION_PATTERNS['upi'], message, re.IGNORECASE):
+        details['mode'] = 'UPI'
+    elif re.search(TRANSACTION_PATTERNS['netbanking'], message, re.IGNORECASE):
+        details['mode'] = 'Net Banking'
+    elif re.search(TRANSACTION_PATTERNS['creditcard'], message, re.IGNORECASE):
+        details['mode'] = 'Credit Card'
+    elif re.search(TRANSACTION_PATTERNS['autodebit'], message, re.IGNORECASE):
+        details['mode'] = 'Auto Debit'
+
+    # Extract UPI ID
+    upi_match = re.search(REGEX_MAP_PRE['upiid'], message)
+    if upi_match:
+        details['upi_id'] = upi_match.group(1)
+
+    # Extract transaction time
+    time_match = re.search(REGEX_MAP_PRE['time'], message)
+    if time_match:
+        details['time'] = time_match.group(0)
+
+    # Extract currency
+    currency_match = re.search(REGEX_MAP_PRE['transactioncurrency'], message, re.IGNORECASE)
+    if currency_match:
+        details['currency'] = currency_match.group(1).upper()
+
+    # Extract reference number
+    ref_match = re.search(REGEX_MAP_POST['utrnumber'], message, re.IGNORECASE)
+    if ref_match:
+        details['reference'] = ref_match.group(0)
+
+    # Extract description
+    description = extract_description(message)
+    if description:
+        details['description'] = description
+
+    return details
 
 def extract_description(message: str) -> str:
     """Extract transaction description from SMS"""
-    # Common patterns for transaction descriptions
     patterns = [
         r'at\s+([A-Za-z0-9\s]+)(?=\s+on|$)',
         r'to\s+([A-Za-z0-9\s]+)(?=\s+on|$)',
