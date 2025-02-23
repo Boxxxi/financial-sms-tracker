@@ -4,6 +4,7 @@ from typing import Dict, List
 import re
 from datetime import datetime
 from models.regex_patterns import REGEX_MAP, REGEX_MAP_PRE, REGEX_MAP_POST, TRANSACTION_PATTERNS
+from models.sms_categorizer import categorize_sms
 
 def process_sms_data(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -28,6 +29,9 @@ def process_sms_data(df: pd.DataFrame) -> pd.DataFrame:
         message_text = str(row[text_col])
         transaction_details = extract_transaction_details(message_text)
 
+        # Get SMS categories
+        categories = categorize_sms(message_text)
+
         if transaction_details.get('amount', 0) > 0:  # Only process if amount is found
             transaction_data = {
                 'amount': transaction_details['amount'],
@@ -38,7 +42,13 @@ def process_sms_data(df: pd.DataFrame) -> pd.DataFrame:
                 'upi_id': transaction_details.get('upi_id', ''),
                 'reference_number': transaction_details.get('reference', ''),
                 'transaction_time': transaction_details.get('time', ''),
-                'mode': transaction_details.get('mode', 'unknown')
+                'mode': transaction_details.get('mode', 'unknown'),
+                # Add categorizations
+                'sms_type': categories['sms_type'],
+                'account_type': categories['account_type'],
+                'sms_subtype': categories['sms_subtype'],
+                'transaction_type': categories['transaction_type'],
+                'transaction_channel': categories['transaction_channel']
             }
 
             # Add date if available
@@ -71,7 +81,8 @@ def process_sms_data(df: pd.DataFrame) -> pd.DataFrame:
 
     if not processed_data:
         return pd.DataFrame(columns=['date', 'amount', 'type', 'description', 'sender', 'raw_message',
-                                   'transaction_currency', 'upi_id', 'reference_number', 'transaction_time', 'mode'])
+                                   'transaction_currency', 'upi_id', 'reference_number', 'transaction_time', 'mode',
+                                   'sms_type', 'account_type', 'sms_subtype', 'transaction_type', 'transaction_channel'])
 
     return pd.DataFrame(processed_data)
 
