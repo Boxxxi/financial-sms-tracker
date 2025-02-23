@@ -22,9 +22,17 @@ def analyze_spending_patterns(df: pd.DataFrame) -> Dict:
     )['amount'].sum().sort_index().tail(6)
 
     # Category-wise spending
-    category_spending = debits.groupby('category')['amount'].agg([
-        'sum', 'count', 'mean'
-    ]).round(2)
+    category_spending = debits.groupby('category').agg({
+        'amount': {
+            'sum': 'sum',
+            'count': 'count',
+            'mean': 'mean'
+        }
+    }).round(2)
+
+    # Flatten multi-level columns
+    category_spending.columns = ['sum', 'count', 'mean']
+    category_insights = category_spending.to_dict('index')
 
     # Account-wise analysis
     account_analysis = analyze_account_patterns(df)
@@ -41,7 +49,7 @@ def analyze_spending_patterns(df: pd.DataFrame) -> Dict:
 
     return {
         'monthly_trend': monthly_spending.to_dict(),
-        'category_insights': category_spending.to_dict(),
+        'category_insights': category_insights,
         'account_insights': account_analysis,
         'day_of_week_pattern': dow_spending.to_dict(),
         'unusual_transactions': unusual_transactions,
@@ -101,13 +109,14 @@ def get_budget_recommendations(df: pd.DataFrame) -> Dict:
 
     recommendations = {}
     for (category, account), amount in avg_monthly.items():
-        key = f"{category} ({account})"
-        recommendations[key] = {
-            'recommended_budget': float(amount * 1.1),
-            'based_on_average': float(amount),
-            'buffer_percentage': 10,
-            'account_type': account
-        }
+        if pd.notna(amount) and amount > 0:  # Only include valid amounts
+            key = f"{category}"  # Simplified key for better display
+            recommendations[key] = {
+                'recommended_budget': float(amount * 1.1),
+                'based_on_average': float(amount),
+                'buffer_percentage': 10,
+                'account_type': account
+            }
 
     return recommendations
 

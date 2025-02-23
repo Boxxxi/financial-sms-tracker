@@ -187,23 +187,28 @@ if not st.session_state.transactions.empty:
         st.write("Based on your historical spending patterns")
 
         # Group recommendations by account type
-        for account in set(data['account_type'] for data in recommendations.values()):
-            st.subheader(f"{account} Budgets")
-            account_recommendations = {
-                k: v for k, v in recommendations.items()
-                if v['account_type'] == account
-            }
+        account_types = set(data['account_type'] for data in recommendations.values())
 
-            for category, data in account_recommendations.items():
-                col1, col2 = st.columns([2, 1])
-                with col1:
-                    st.metric(
-                        category,
-                        f"₹{data['recommended_budget']:.2f}",
-                        f"+{data['buffer_percentage']}%"
-                    )
-                with col2:
-                    st.caption(f"Based on avg: ₹{data['based_on_average']:.2f}")
+        if account_types:
+            for account in account_types:
+                st.subheader(f"{account} Budgets")
+                account_recommendations = {
+                    k: v for k, v in recommendations.items()
+                    if v['account_type'] == account
+                }
+
+                for category, data in account_recommendations.items():
+                    col1, col2 = st.columns([2, 1])
+                    with col1:
+                        st.metric(
+                            category,
+                            f"₹{data['recommended_budget']:.2f}",
+                            f"+{data['buffer_percentage']}%"
+                        )
+                    with col2:
+                        st.caption(f"Based on avg: ₹{data['based_on_average']:.2f}")
+        else:
+            st.info("No budget recommendations available yet")
 else:
     st.info("Upload transaction data to view analytics and insights")
 
