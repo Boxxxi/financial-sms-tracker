@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List
 import re
+from datetime import datetime
 
 def process_sms_data(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -9,7 +10,7 @@ def process_sms_data(df: pd.DataFrame) -> pd.DataFrame:
     """
     # Detect SMS text column
     text_columns = [col for col in df.columns if any(x in col.lower() for x in ['text', 'sms', 'message', 'body', 'content'])]
-    date_columns = [col for col in df.columns if any(x in col.lower() for x in ['date', 'time', 'timestamp'])]
+    date_columns = [col for col in df.columns if any(x in col.lower() for x in ['date', 'time', 'timestamp', 'time_in_millis'])]
     sender_columns = [col for col in df.columns if any(x in col.lower() for x in ['sender', 'from', 'number', 'source'])]
 
     if not text_columns:
@@ -38,8 +39,19 @@ def process_sms_data(df: pd.DataFrame) -> pd.DataFrame:
             # Add date if available
             if date_col:
                 try:
-                    transaction_data['date'] = pd.to_datetime(row[date_col])
-                except:
+                    timestamp = row[date_col]
+                    # Convert string to numeric if it's a string
+                    if isinstance(timestamp, str):
+                        timestamp = float(timestamp)
+
+                    # Check if timestamp is in milliseconds (13 digits) or seconds (10 digits)
+                    if timestamp > 1e12:  # Milliseconds
+                        transaction_data['date'] = pd.Timestamp(timestamp, unit='ms')
+                    else:  # Seconds
+                        transaction_data['date'] = pd.Timestamp(timestamp, unit='s')
+                except Exception as e:
+                    # Fallback to current time if conversion fails
+                    print(f"Date conversion error for {row[date_col]}: {str(e)}")
                     transaction_data['date'] = pd.Timestamp.now()
             else:
                 transaction_data['date'] = pd.Timestamp.now()
